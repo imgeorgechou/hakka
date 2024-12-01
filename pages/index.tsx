@@ -17,6 +17,23 @@ interface DetectedObject {
   pronunciation: string;
   confidence: number;
 }
+const englishToChineseMap: { [key: string]: string } = {
+  people: "人",
+  chair: "椅子",
+  blackboard: "黑板",
+  book: "書",
+  backpack: "背包",
+  umbrella: "雨傘",
+  scissors: "剪刀",
+  computer: "電腦",
+  desk: "桌子",
+  pencil: "鉛筆",
+  pen: "筆",
+  paper: "紙",
+  ruler: "尺",
+  phone: "手機",
+  person: "人", // YOLO 有時會返回 'person' 而不是 'people'
+};
 
 const classroomItems: Item[] = [
   {
@@ -36,7 +53,7 @@ const classroomItems: Item[] = [
   {
     name: "粉牌",
     hakkaChinese: "黑板",
-    hakkaPhonetics: "funˋ",
+    hakkaPhonetics: "funˋ paiˇ",
     english: "blackboard",
     collected: false,
   },
@@ -66,6 +83,13 @@ const classroomItems: Item[] = [
     hakkaChinese: "剪刀",
     hakkaPhonetics: "gau doˊ",
     english: "scissors",
+    collected: false,
+  },
+  {
+    name: "電腦",
+    hakkaChinese: "電腦",
+    hakkaPhonetics: "tien noˋ",
+    english: "computer",
     collected: false,
   },
 ];
@@ -100,8 +124,8 @@ const HomeScreen: React.FC = () => {
       // 過濾已收集的物品，只添加新物品
       const newItems = data
         .map((obj) => ({
-          name: obj.hakka, // 改為客語作為主要名稱
-          hakkaChinese: obj.english, // 英文對應的中文
+          name: obj.hakka,
+          hakkaChinese: englishToChineseMap[obj.english] || obj.english, // 使用映射表，如果沒有對應就使用英文
           hakkaPhonetics: obj.pronunciation,
           english: obj.english,
           imageUrl: imageUrl,
