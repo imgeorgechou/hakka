@@ -1,13 +1,14 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
-import { Camera, Book, Play } from "lucide-react";
+import { Camera, Play } from "lucide-react";
 
 interface Item {
   name: string;
   hakkaChinese: string;
   hakkaPhonetics: string;
   english: string;
-  audioUrl?: string;
+  imageUrl?: string;
+  collected?: boolean;
 }
 
 interface DetectedObject {
@@ -17,132 +18,178 @@ interface DetectedObject {
   confidence: number;
 }
 
+const classroomItems: Item[] = [
+  {
+    name: "凳仔",
+    hakkaChinese: "椅子",
+    hakkaPhonetics: "den e",
+    english: "chair",
+    collected: false,
+  },
+  {
+    name: "烏枋",
+    hakkaChinese: "黑板",
+    hakkaPhonetics: "vu piong",
+    english: "blackboard",
+    collected: false,
+  },
+  {
+    name: "電腦",
+    hakkaChinese: "電腦",
+    hakkaPhonetics: "tien nau",
+    english: "computer",
+    collected: false,
+  },
+  {
+    name: "書",
+    hakkaChinese: "書",
+    hakkaPhonetics: "su",
+    english: "book",
+    collected: false,
+  },
+];
+
 const HomeScreen: React.FC = () => {
   const [collectedItems, setCollectedItems] = useState<Item[]>([]);
-  const [showItemModal, setShowItemModal] = useState(false);
-  const [currentItem, setCurrentItem] = useState<Item | null>(null);
-  const [audioPlayer, setAudioPlayer] = useState<HTMLAudioElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
-  // 處理相機功能
-  const startCamera = async () => {
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    const formData = new FormData();
+    formData.append("image", file);
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment",
-        },
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setShowCamera(true);
-      }
-    } catch (error) {
-      console.error("Error accessing camera:", error);
-    }
-  };
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/detect`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+      const data: DetectedObject[] = await response.json();
 
-  const captureImage = async () => {
-    if (!videoRef.current) return;
+      // 創建圖片 URL
+      const imageUrl = URL.createObjectURL(file);
 
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.drawImage(videoRef.current, 0, 0);
-
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-
-      setIsLoading(true);
-      const formData = new FormData();
-      formData.append("image", blob, "capture.jpg");
-
-      try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/detect`,
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
-        const data: DetectedObject[] = await response.json();
-
-        // 將偵測到的物件轉換為 Item 格式並加入收集清單
-        const newItems = data.map((obj) => ({
-          name: obj.hakka,
-          hakkaChinese: obj.hakka,
+      // 過濾已收集的物品，只添加新物品
+      const newItems = data
+        .map((obj) => ({
+          name: obj.hakka, // 改為客語作為主要名稱
+          hakkaChinese: obj.english, // 英文對應的中文
           hakkaPhonetics: obj.pronunciation,
           english: obj.english,
-        }));
+          imageUrl: imageUrl,
+          collected: true,
+        }))
+        .filter(
+          (newItem) =>
+            !collectedItems.some(
+              (existingItem) => existingItem.name === newItem.name
+            )
+        );
 
-        setCollectedItems((prev) => [...prev, ...newItems]);
-        setShowCamera(false);
-      } catch (error) {
-        console.error("Error detecting objects:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }, "image/jpeg");
-  };
-
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
+      setCollectedItems((prev) => [...newItems, ...prev]);
+    } catch (error) {
+      console.error("Error detecting objects:", error);
+    } finally {
+      setIsLoading(false);
     }
-    setShowCamera(false);
   };
 
-  // ... 其他原有的函數保持不變 ...
+  const handlePlayAudio = (text: string) => {
+    // 預留給語音合成功能
+    console.log("Playing audio for:", text);
+  };
 
   return (
     <div className="bg-gradient-to-br from-green-100 to-blue-100 min-h-screen p-4 sm:p-6 md:p-8">
-      {/* 首頁頂部區域 */}
+      {/* 頂部區域 */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-800">客語學習尋寶</h1>
-          <button
-            onClick={startCamera}
-            className="bg-green-500 text-white p-2 rounded-full hover:bg-green-600"
-          >
+          <label className="bg-green-500 text-white p-2 rounded-full hover:bg-green-600 cursor-pointer">
             <Camera size={24} />
-          </button>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+          </label>
         </div>
       </div>
 
-      {/* 相機介面 */}
-      {showCamera && (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute bottom-10 flex gap-4">
-            <button
-              onClick={captureImage}
-              className="bg-green-500 text-white p-4 rounded-full hover:bg-green-600"
+      {/* 待蒐集字卡 */}
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-gray-700 mb-4">
+          教室關卡 - 待蒐集字卡
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          {classroomItems.map((item, index) => (
+            <div
+              key={index}
+              className={`bg-white rounded-lg p-4 shadow-md text-center ${
+                item.collected ? "bg-green-50" : ""
+              }`}
             >
-              拍照
-            </button>
-            <button
-              onClick={stopCamera}
-              className="bg-red-500 text-white p-4 rounded-full hover:bg-red-600"
-            >
-              取消
-            </button>
-          </div>
+              <h3 className="font-bold text-lg">{item.name}</h3>
+              <p className="text-sm text-gray-600">{item.hakkaPhonetics}</p>
+              <p className="text-sm text-gray-600">{item.hakkaChinese}</p>
+              <p className="text-xs text-gray-400">{item.english}</p>
+              {item.collected && (
+                <span className="text-green-500 text-sm">已收集!</span>
+              )}
+            </div>
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* 已蒐集字卡和其他原有的 UI 元素保持不變 */}
-      {/* ... */}
+      {/* 已蒐集字卡 */}
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-gray-700 mb-4">已蒐集字卡</h2>
+        <div className="space-y-4">
+          {collectedItems.map((item, index) => (
+            <div
+              key={index}
+              className="bg-white rounded-lg p-4 shadow-md flex items-center"
+            >
+              {/* 左側圖片 */}
+              {item.imageUrl && (
+                <div className="mr-4 relative w-24 h-24 flex-shrink-0">
+                  <Image
+                    src={item.imageUrl}
+                    alt={item.name}
+                    layout="fill"
+                    objectFit="cover"
+                    className="rounded-lg"
+                  />
+                </div>
+              )}
+
+              {/* 右側文字內容 */}
+              <div className="flex-grow">
+                <h3 className="font-bold text-xl">{item.name}</h3>
+                <p className="text-md text-gray-600">{item.hakkaPhonetics}</p>
+                <p className="text-md text-gray-600">{item.hakkaChinese}</p>
+                <p className="text-sm text-gray-400">{item.english}</p>
+              </div>
+
+              {/* 播放按鈕 */}
+              <button
+                onClick={() => handlePlayAudio(item.name)}
+                className="ml-4 bg-blue-100 text-blue-600 p-2 rounded-full hover:bg-blue-200 transition-colors"
+              >
+                <Play size={20} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* 載入中提示 */}
       {isLoading && (
